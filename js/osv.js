@@ -843,6 +843,15 @@ $(document).ready(function() {
   // Read parameters
   CURRENT_LOCATIONS={}
   params = getParams();
+  if ( params.lat1 === undefined && params.lng1 === undefined && params.panoid1 === undefined )
+  {
+  	//Put in a default tour
+	  
+	  params.topten1="Pjn0WrfQ6AE52q"
+	  params.panoid1="JrRveAuhYpFiEsj1WMOcWw"
+	  params.panoid2="3IXItKTBOkydzJ5s8m31Bw"
+	  params.narration2="This is the Eiffel Tower. The previous view showed the Pearson API being used to retrieve text for Top Ten Guides through their webservice. We used a live working call to the API, not hard coded text. We use the web speech API. This entry shows a hand written description as a travel blogger might write."
+  }
   if (params.lat1 !== undefined) DEFAULT_LOCATION.lat = parseFloat(params.lat1.replace(/\//,''));
   if (params.lng1 !== undefined) DEFAULT_LOCATION.lng = parseFloat(params.lng1.replace(/\//,''));
   if (params.panoid1 !== undefined)
