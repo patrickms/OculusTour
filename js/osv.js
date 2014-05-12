@@ -456,16 +456,39 @@ function initPano() {
   };
 }
 
+function imageLoaded(x)
+{
+	panoLoader.links=[];
+    progBarContainer.visible = false;
+    progBar.visible = false;
+    $('.mapprogress').hide();
+	projSphere.material.map = x;
+    
+    if(AUDIO !== undefined && PLAY_AUDIO)
+    { 
+	  AUDIO.play();
+    }
+	
+	setSphereGeometry();
+}
+
+
 function setSphereGeometry() {
   var geom = projSphere.geometry;
-  var depthMap = panoDepthLoader.depthMap.depthMap;
+	
+  var useDepth = USE_DEPTH;
+  var depthMap;
+  if (panoDepthLoader === undefined || panoDepthLoader.depthMap === undefined || panoDepthLoader.depthMap.depthMap === undefined || IMAGE_URL !== undefined )
+	  useDepth=false;
+  else
+	  depthMap = panoDepthLoader.depthMap.depthMap;
   var y, x, u, v, radius, i=0;
   for ( y = 0; y <= geom.heightSegments; y ++ ) {
     for ( x = 0; x <= geom.widthSegments; x ++ ) {
       u = x / geom.widthSegments;
       v = y / geom.heightSegments;
 
-      radius = USE_DEPTH ? Math.min(depthMap[y*512 + x], FAR) : 500;
+      radius = useDepth ? Math.min(depthMap[y*512 + x], FAR) : 500;
 
       var vertex = geom.vertices[i];
       vertex.x = - radius * Math.cos( geom.phiStart + u * geom.phiLength ) * Math.sin( geom.thetaStart + v * geom.thetaLength );
@@ -648,7 +671,12 @@ function moveToNextTourLocation() {
   {
 	  AUDIO.pause();
   }
-  if(newLocation.panoid !== undefined)
+  if(newLocation.image !== undefined)
+  {
+	  IMAGE_URL=newLocation.image;
+  	  THREE.ImageUtils.loadTexture(newLocation.image, new THREE.UVMapping(), imageLoaded);
+  }
+  else if(newLocation.panoid !== undefined)
   {
   	//alert('loading next pano')
     panoLoader.load(newLocation.panoid);
@@ -801,12 +829,15 @@ function popFutureLocations()
 {
   var i=2;
   var FUTURE_LOCATIONS={};
-  while( (CURRENT_LOCATIONS["lat"+i] !== undefined) && (CURRENT_LOCATIONS["lng"+i] !== undefined) )
-  {
+  while( ((CURRENT_LOCATIONS["lat"+i] !== undefined) && (CURRENT_LOCATIONS["lng"+i] !== undefined)) 
+	  		|| CURRENT_LOCATIONS["panoid"+i] != undefined || CURRENT_LOCATIONS["image"+i] != undefined )
+ {
     FUTURE_LOCATIONS["lat"+(i-1)]=CURRENT_LOCATIONS["lat"+i];
     FUTURE_LOCATIONS["lng"+(i-1)]=CURRENT_LOCATIONS["lng"+i];
     if(CURRENT_LOCATIONS["audio"+i] !== undefined)
 	    FUTURE_LOCATIONS["audio"+(i-1)]=CURRENT_LOCATIONS["audio"+i];
+    if(CURRENT_LOCATIONS["image"+i] !== undefined)
+	    FUTURE_LOCATIONS["image"+(i-1)]=CURRENT_LOCATIONS["image"+i];
     if(CURRENT_LOCATIONS["panoid"+i] !== undefined)
 	    FUTURE_LOCATIONS["panoid"+(i-1)]=CURRENT_LOCATIONS["panoid"+i];
     if(CURRENT_LOCATIONS["topten"+i] !== undefined)
@@ -819,6 +850,7 @@ function popFutureLocations()
   result={};
   if(CURRENT_LOCATIONS.lat1 !== undefined) result.lat=CURRENT_LOCATIONS.lat1;
   if(CURRENT_LOCATIONS.lng1 !== undefined) result.lng=CURRENT_LOCATIONS.lng1;
+  if(CURRENT_LOCATIONS.image1 !== undefined) result.image=CURRENT_LOCATIONS.image1;
   if(CURRENT_LOCATIONS.panoid1 !== undefined) result.panoid=CURRENT_LOCATIONS.panoid1;
   if(CURRENT_LOCATIONS.topten1 !== undefined) speakTopTen(CURRENT_LOCATIONS.topten1);
   else if(CURRENT_LOCATIONS.narration1 !==undefined) speak(CURRENT_LOCATIONS.narration1);
@@ -843,19 +875,31 @@ $(document).ready(function() {
   // Read parameters
   CURRENT_LOCATIONS={}
   params = getParams();
-  if ( params.lat1 === undefined && params.lng1 === undefined && params.panoid1 === undefined )
+  if ( params.lat1 === undefined && params.lng1 === undefined && params.panoid1 === undefined && params.image1 === undefined )
   {
   	//Put in a default tour
 	  //Union square /images/union_square.jpg Around town id HyKn3r91yHHyke
 	  //Central Park /images/central_park.jpg Topten id HxChQpHBRAZV7y (dataset tt_newyor) 
 	  //Museum of Natural History /images/museum_of_natural_history.jpg Topten id MahVkMkwpftWHh
-	  params.topten1="Pjn0WrfQ6AE52q"
-	  params.panoid1="JrRveAuhYpFiEsj1WMOcWw"
-	  params.panoid2="3IXItKTBOkydzJ5s8m31Bw"
-	  params.narration2="This is the Eiffel Tower. The previous view showed the Pearson API being used to retrieve text for Top Ten Guides through their webservice. We used a live working call to the API, not hard coded text. We use the web speech API. This entry shows a hand written description as a travel blogger might write."
+	  //params.topten1="Pjn0WrfQ6AE52q"
+	  params.topten1="HxChQpHBRAZV7y"
+	  params.image1="/images/central_park.jpg"
+	  params.topten2="MahVkMkwpftWHh"
+	  params.image2="/images/museum_of_natural_history.jpg"
+	  params.aroundtown3="HyKn3r91yHHyke"
+	  params.narration3="This is Union Square"
+	  params.image3="/images/union_square.jpg"
+	  //params.panoid1="JrRveAuhYpFiEsj1WMOcWw"
+	  //params.panoid2="3IXItKTBOkydzJ5s8m31Bw"
+	  //params.narration2="This is the Eiffel Tower. The previous view showed the Pearson API being used to retrieve text for Top Ten Guides through their webservice. We used a live working call to the API, not hard coded text. We use the web speech API. This entry shows a hand written description as a travel blogger might write."
   }
   if (params.lat1 !== undefined) DEFAULT_LOCATION.lat = parseFloat(params.lat1.replace(/\//,''));
   if (params.lng1 !== undefined) DEFAULT_LOCATION.lng = parseFloat(params.lng1.replace(/\//,''));
+  if (params.image1 !== undefined)
+  {
+  	IMAGE_URL = params.image1;
+  	//alert(PANOID);
+  }
   if (params.panoid1 !== undefined)
   {
   	PANOID = params.panoid1;
@@ -876,7 +920,7 @@ $(document).ready(function() {
   	AUDIO=undefined;
   }
   var i=2;
-  while( ((params["lat"+i] !== undefined) && (params["lng"+i] !== undefined)) || params["panoid"+i] != undefined )
+  while( ((params["lat"+i] !== undefined) && (params["lng"+i] !== undefined)) || params["panoid"+i] != undefined || params["image"+i] != undefined )
   {
     if((params["lat"+i] !== undefined) && (params["lng"+i] !== undefined)){
     	CURRENT_LOCATIONS["lat"+(i-1)]=parseFloat(params["lat"+i].replace(/\//,''));
@@ -884,6 +928,8 @@ $(document).ready(function() {
     }
     if(params["audio"+i] !== undefined)
 	    CURRENT_LOCATIONS["audio"+(i-1)]=params["audio"+i];
+    if(params["image"+i] !== undefined)
+	    CURRENT_LOCATIONS["image"+(i-1)]=params["image"+i];
     if(params["panoid"+i] !== undefined)
 	    CURRENT_LOCATIONS["panoid"+(i-1)]=params["panoid"+i];
     if(params["topten"+i] !== undefined)
@@ -926,7 +972,12 @@ $(document).ready(function() {
   initGoogleMap();
 
   // Load default location
-  if(PANOID !== undefined)
+  
+  if(IMAGE_URL !== undefined)
+  {
+	  THREE.ImageUtils.loadTexture(IMAGE_URL, new THREE.UVMapping(), imageLoaded);
+  }
+  else if(PANOID !== undefined)
 	  panoLoader.load( PANOID );
   else
 	  panoLoader.load( new google.maps.LatLng( DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng ) );
