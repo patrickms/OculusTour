@@ -846,7 +846,9 @@ $(document).ready(function() {
   if ( params.lat1 === undefined && params.lng1 === undefined && params.panoid1 === undefined )
   {
   	//Put in a default tour
-	  
+	  //Union square /images/union_square.jpg Around town id HyKn3r91yHHyke
+	  //Central Park /images/central_park.jpg Topten id HxChQpHBRAZV7y (dataset tt_newyor) 
+	  //Museum of Natural History /images/museum_of_natural_history.jpg Topten id MahVkMkwpftWHh
 	  params.topten1="Pjn0WrfQ6AE52q"
 	  params.panoid1="JrRveAuhYpFiEsj1WMOcWw"
 	  params.panoid2="3IXItKTBOkydzJ5s8m31Bw"
