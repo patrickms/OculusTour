@@ -39,6 +39,10 @@ var WORLD_FACTOR = 1.0;
 var FULLSCREEN_REQUESTED = false;
 var BASE_PATH='/static/rift'
 var USE_RIFT=true;
+
+var renderer;
+var effect;
+
 var OculusRift = {
   // Parameters from the Oculus Rift DK1
   hResolution: 1280,
@@ -68,6 +72,48 @@ var BaseRotation = new THREE.Quaternion();
 var BaseRotationEuler = new THREE.Vector3();
 
 var VRState = null;
+
+
+
+function FallbackSpeechSynthesisUtterance (text) {
+        return {
+            lang: 'en',
+            volume: 1.0,
+            onend: function () {},
+            onstart: function () {},
+            text: text
+        };
+    };
+
+
+var fallbackSpeechSynthesis = {
+        speak: function (utterance) {
+            //var url = 'http://www.corsproxy.com/translate.google.com/translate_tts?&q=' + escape(utterance.text) + '&tl=' + utterance.lang;
+            //var audio = new Audio(url);
+            //audio.volume = utterance.volume;
+            //audio.play();
+            //audio.addEventListener('ended', utterance.onend);
+            //audio.addEventListener('play', utterance.onstart);
+			
+			
+			meSpeak.speak(utterance.text);
+			//meSpeak.speak('hello world', { amplitude: utterance.volume*100 }, utterance.onend);
+        },
+		cancel: function (){}
+    };
+
+//Polyfill speech API
+(function () {
+    'use strict';
+
+    if ( window.SpeechSynthesisUtterance !== undefined && window.speechSynthesis !== undefined) {
+        return;
+    }
+
+	meSpeak.loadConfig("/mespeak_config.json");
+	meSpeak.loadVoice("/voices/en/en.json");
+	//meSpeak.speak("Fuck me with a barrel of sledgehammers");
+})();
 
 // Utility function
 // ----------------------------------------------
@@ -124,8 +170,14 @@ function initWebGL() {
     renderer = new THREE.WebGLRenderer();
   }
   catch(e){
-    alert('This application needs WebGL enabled!');
-    return false;
+	USE_RIFT=false
+	try {
+		renderer = new THREE.CanvasRenderer();
+	}
+	catch(e){
+		alert('Cannot create a 2D renderer!');
+		return false;
+	}
   }
 
   renderer.autoClearColor = false;
@@ -134,10 +186,13 @@ function initWebGL() {
   // Add stereo effect
 
   // Set the window resolution of the rift in case of not native
-  OculusRift.hResolution = WIDTH, OculusRift.vResolution = HEIGHT,
+  OculusRift.hResolution = WIDTH, OculusRift.vResolution = HEIGHT;
 
-  effect = new THREE.OculusRiftEffect( renderer, {HMD:OculusRift, worldFactor:WORLD_FACTOR} );
-  effect.setSize(WIDTH, HEIGHT );
+  if(renderer instanceof THREE.WebGLRenderer)
+  {
+	  effect = new THREE.OculusRiftEffect( renderer, {HMD:OculusRift, worldFactor:WORLD_FACTOR} );
+	  effect.setSize(WIDTH, HEIGHT );
+  }
 
   var viewer = $('#viewer');
   viewer.append(renderer.domElement);
@@ -663,9 +718,9 @@ function moveToNextPlace() {
 
 function moveToNextTourLocation() {
   PLAY_AUDIO=true;
-	if(window.speechSynthesis.speaking)
+	if(window.speechSynthesis && window.speechSynthesis.speaking)
 		KILL_SPEECH=true;
-  window.speechSynthesis.cancel();
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
   var newLocation=popFutureLocations();
   if(AUDIO !== undefined)
   {
@@ -717,7 +772,7 @@ function initVR() {
 }
 
 function render() {
-  if(USE_RIFT)
+  if(USE_RIFT && renderer instanceof THREE.WebGLRenderer && effect !== undefined)
   	effect.render( scene, camera );
   else
     renderer.render(scene, camera);
@@ -749,8 +804,9 @@ function resize( event ) {
   setUiSize();
 
   OculusRift.hResolution = WIDTH,
-  OculusRift.vResolution = HEIGHT,
-  effect.setHMD(OculusRift);
+  OculusRift.vResolution = HEIGHT;
+  if (effect !== undefined)
+	  effect.setHMD(OculusRift);
 
   renderer.setSize( WIDTH, HEIGHT );
   camera.projectionMatrix.makePerspective( 60, WIDTH /HEIGHT, 1, 1100 );
@@ -801,11 +857,16 @@ function getParams() {
 
 function speak(text)
 {
-	if(window.speechSynthesis.speaking)
+	if(window.speechSynthesis && window.speechSynthesis.speaking)
 		KILL_SPEECH=true;
-    window.speechSynthesis.cancel();
+	
+	if(window.speechSynthesis)
+    	window.speechSynthesis.cancel();
 	initText=text.substr(0,241);
-	SPEECHUTTERANCE = new SpeechSynthesisUtterance(initText);
+	if(window.SpeechSynthesisUtterance !== undefined)
+		SPEECHUTTERANCE = new SpeechSynthesisUtterance(initText);
+	else
+		SPEECHUTTERANCE = new FallbackSpeechSynthesisUtterance(initText);
 	SPEECHUTTERANCE.onend = function(e) {
 	    var newText=text.substr(241);
 	    if(newText.length)
@@ -815,7 +876,10 @@ function speak(text)
 	  	}
 	  	KILL_SPEECH=false;
 	};
-	window.speechSynthesis.speak(SPEECHUTTERANCE);
+	if(window.SpeechSynthesisUtterance !== undefined)
+		window.speechSynthesis.speak(SPEECHUTTERANCE);
+	else
+		fallbackSpeechSynthesis.speak(SPEECHUTTERANCE);
 }
 
 function speakTopTen(topTenId)
@@ -875,6 +939,14 @@ $(document).ready(function() {
   // Read parameters
   CURRENT_LOCATIONS={}
   params = getParams();
+  if ( params.rift !== undefined )
+  {
+	  var riftChar = params.rift.toString().toLowerCase().trim()[0];
+	  if(riftChar === 't'|| riftChar === 'y' || riftChar === '1' )
+		  USE_RIFT=true;
+	  else
+		  USE_RIFT=false;
+  }
   if ( params.lat1 === undefined && params.lng1 === undefined && params.panoid1 === undefined && params.image1 === undefined )
   {
   	//Put in a default tour
